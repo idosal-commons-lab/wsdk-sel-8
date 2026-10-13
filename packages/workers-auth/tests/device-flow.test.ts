@@ -422,3 +422,49 @@ describe("device flow unusable responses", () => {
 		expect(opened).toEqual([]);
 	});
 });
+
+describe("token refresh failures", () => {
+	const EXPIRED: UserAuthConfig = {
+		oauth_token: "expired-access-token",
+		expiration_time: "2020-01-01T00:00:00.000Z",
+		refresh_token: "still-valid-refresh-token",
+		scopes: ["account:read"],
+	};
+
+	function loginOrRefresh(ctx: OAuthFlowContext) {
+		return createOAuthFlow(ctx).loginOrRefreshIfRequired({
+			complianceConfig: COMPLIANCE_CONFIG,
+			scopes: ["account:read"],
+		});
+	}
+
+	it("throws a network error without starting a login or touching stored credentials", async ({
+		expect,
+	}) => {
+		msw.use(http.post("*/oauth2/token", () => HttpResponse.error()));
+		const { ctx, opened, stored } = createTestContext();
+		ctx.storageFactory().write(EXPIRED);
+		// The test storage is a single in-memory slot shared by every factory call.
+		expect(stored()).toEqual(EXPIRED);
+
+		await expect(loginOrRefresh(ctx)).rejects.toThrow(
+			"Could not reach the Cloudflare auth server"
+		);
+		expect(opened).toEqual([]);
+		expect(stored()).toEqual(EXPIRED);
+	});
+
+	it("still reports an expired token when the server rejects the refresh token", async ({
+		expect,
+	}) => {
+		msw.use(mockPoll(400, { error: "invalid_grant" }));
+		const { ctx } = createTestContext();
+		ctx.isNonInteractiveOrCI = () => true;
+		ctx.storageFactory().write(EXPIRED);
+
+		await expect(loginOrRefresh(ctx)).resolves.toEqual({
+			loggedIn: false,
+			reason: "token-expired-non-interactive",
+		});
+	});
+});

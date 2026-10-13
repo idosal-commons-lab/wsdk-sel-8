@@ -12,7 +12,10 @@ import { generateAuthUrl as defaultGenerateAuthUrl } from "./generate-auth-url";
 import { generateRandomState as defaultGenerateRandomState } from "./generate-random-state";
 import { readStoredAuthState, type OAuthFlowState } from "./state";
 import { getOrCreateTemporaryPreviewAccount } from "./temporary";
-import { exchangeRefreshTokenForAccessToken } from "./token-exchange";
+import {
+	AuthServerUnreachableError,
+	exchangeRefreshTokenForAccessToken,
+} from "./token-exchange";
 import type { AuthConfigStorage } from "./config-file/auth";
 import type { TemporaryPreviewAccount } from "./config-file/temporary";
 import type { OAuthFlowContext } from "./context";
@@ -321,7 +324,9 @@ export function createOAuthFlow(ctx: OAuthFlowContext): OAuthFlowAPI {
 		return Boolean(accessToken && new Date() >= new Date(accessToken.expiry));
 	}
 
-	async function refreshToken(profile?: string): Promise<boolean> {
+	async function refreshToken(
+		profile?: string
+	): Promise<"refreshed" | "rejected" | "network-error"> {
 		// `exchangeRefreshTokenForAccessToken` reads the refresh token fresh from
 		// disk on every call, so we always pick up the latest rotation written by a
 		// sibling Wrangler process. Refresh tokens are single-use, so a long-lived
@@ -349,12 +354,14 @@ export function createOAuthFlow(ctx: OAuthFlowContext): OAuthFlowAPI {
 				refresh_token,
 				scopes,
 			});
-			return true;
+			return "refreshed";
 		} catch (e) {
 			ctx.logger.debug(
 				`Token refresh failed: ${e instanceof Error ? e.message : String(e)}`
 			);
-			return false;
+			return e instanceof AuthServerUnreachableError
+				? "network-error"
+				: "rejected";
 		}
 	}
 
@@ -389,10 +396,18 @@ export function createOAuthFlow(ctx: OAuthFlowContext): OAuthFlowAPI {
 		} else if (isRefreshNeeded(props.profile)) {
 			// We're logged in, but the refresh token seems to have expired,
 			// so let's try to refresh it
-			const didRefresh = await refreshToken(props.profile);
-			if (didRefresh) {
+			const refreshResult = await refreshToken(props.profile);
+			if (refreshResult === "refreshed") {
 				// The token was refreshed, so we're done here
 				return { loggedIn: true };
+			}
+			if (refreshResult === "network-error") {
+				// The refresh token may still be valid, so leave the stored
+				// credentials alone and don't start a new login.
+				throw new UserError(
+					"Could not reach the Cloudflare auth server to refresh your auth token. Check your network connection and try again. Your stored credentials have not been changed.",
+					{ telemetryMessage: "user auth refresh network error" }
+				);
 			}
 			// If the refresh token isn't valid, then we ask the user to login again
 			if (ctx.isNonInteractiveOrCI()) {
@@ -471,8 +486,7 @@ export function createOAuthFlow(ctx: OAuthFlowContext): OAuthFlowAPI {
 		const expired =
 			stored.accessToken && new Date() >= new Date(stored.accessToken.expiry);
 		if (expired) {
-			const didRefresh = await refreshToken();
-			if (!didRefresh) {
+			if ((await refreshToken()) !== "refreshed") {
 				return undefined;
 			}
 			// Re-read after the refresh has persisted the new token to disk.
