@@ -2,6 +2,7 @@ import { Miniflare } from "miniflare";
 import { afterAll, beforeAll, describe, test } from "vitest";
 import { CorePaths } from "../../../src/workers/core/constants";
 import {
+	zR2BucketDeleteObjectResponse,
 	zR2BucketDeleteObjectsResponse,
 	zR2BucketGetObjectResponse,
 	zR2BucketListObjectsResponse,
@@ -333,6 +334,33 @@ describe("R2 API", () => {
 					expect.objectContaining({ message: "Invalid custom metadata JSON" }),
 				],
 			});
+		});
+	});
+
+	describe("DELETE /r2/buckets/:bucket_name/objects/:object_key", () => {
+		test("deletes a single object", async ({ expect }) => {
+			const r2 = await mf.getR2Bucket("TEST_BUCKET");
+			await r2.put("delete-single.txt", "content");
+
+			const response = await mf.dispatchFetch(
+				`${BASE_URL}/r2/buckets/test-bucket/objects/delete-single.txt`,
+				{ method: "DELETE" }
+			);
+			await expectValidResponse(
+				response,
+				zR2BucketDeleteObjectResponse,
+				expect
+			);
+			expect(await r2.head("delete-single.txt")).toBeNull();
+		});
+
+		test("succeeds if the object does not exist", async ({ expect }) => {
+			const response = await mf.dispatchFetch(
+				`${BASE_URL}/r2/buckets/test-bucket/objects/does-not-exist.txt`,
+				{ method: "DELETE" }
+			);
+			expect(response.status).toBe(200);
+			await response.json();
 		});
 	});
 

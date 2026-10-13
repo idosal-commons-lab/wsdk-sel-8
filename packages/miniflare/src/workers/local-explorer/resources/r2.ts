@@ -347,6 +347,26 @@ export async function putR2Object(
 	);
 }
 
+/**
+ * Delete a single object from an R2 bucket.
+ *
+ * @see https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/objects/methods/delete/
+ */
+export async function deleteR2Object(
+	c: AppContext,
+	bucket_name: string,
+	object_key: string
+): Promise<Response> {
+	const response = await sendR2PutRequest(c, bucket_name, {
+		method: "delete",
+		object: object_key,
+	});
+	if (!response.ok) {
+		return toR2ErrorResponse(response);
+	}
+	return c.json(wrapResponse(null));
+}
+
 type DeleteObjectsBody = z.output<typeof zR2BucketDeleteObjectsData>["body"];
 
 /**

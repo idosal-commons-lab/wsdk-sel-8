@@ -1648,6 +1648,52 @@
 				},
 				"summary": "Upload Object to R2 Bucket",
 				"tags": ["R2 Bucket"]
+			},
+			"delete": {
+				"description": "Delete a single object from an R2 bucket.",
+				"operationId": "r2-bucket-delete-object",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "bucket_name",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "object_key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/workers_api-response-common"
+								}
+							}
+						},
+						"description": "Delete object response."
+					},
+					"4XX": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/workers_api-response-common-failure"
+								}
+							}
+						},
+						"description": "Delete object failure."
+					}
+				},
+				"summary": "Delete Object from R2 Bucket",
+				"tags": ["R2 Bucket"]
 			}
 		},
 		"/workers/durable_objects/namespaces/{namespace_id}/query": {

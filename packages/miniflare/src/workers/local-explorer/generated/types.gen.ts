@@ -1909,6 +1909,36 @@ export type R2BucketGetObjectResponses = {
 export type R2BucketGetObjectResponse =
 	R2BucketGetObjectResponses[keyof R2BucketGetObjectResponses];
 
+export type R2BucketDeleteObjectData = {
+	body?: never;
+	path: {
+		bucket_name: string;
+		object_key: string;
+	};
+	query?: never;
+	url: "/r2/buckets/{bucket_name}/objects/{object_key}";
+};
+
+export type R2BucketDeleteObjectErrors = {
+	/**
+	 * Delete object failure.
+	 */
+	"4XX": WorkersApiResponseCommonFailure;
+};
+
+export type R2BucketDeleteObjectError =
+	R2BucketDeleteObjectErrors[keyof R2BucketDeleteObjectErrors];
+
+export type R2BucketDeleteObjectResponses = {
+	/**
+	 * Delete object response.
+	 */
+	200: WorkersApiResponseCommon;
+};
+
+export type R2BucketDeleteObjectResponse =
+	R2BucketDeleteObjectResponses[keyof R2BucketDeleteObjectResponses];
+
 export type R2BucketPutObjectData = {
 	body: Blob | File;
 	headers?: {
