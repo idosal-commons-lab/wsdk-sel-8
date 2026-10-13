@@ -239,7 +239,9 @@ describe("config findWranglerConfig()", () => {
 			expect(normalizeString(`${error}`)).toMatchInlineSnapshot(`
 				"Error: Found both a user configuration file at "foo/wrangler.toml"
 				and a deploy configuration file at "foo/bar/.wrangler/deploy/config.json".
-				But these do not share the same base path so it is not clear which should be used."
+				But these do not share the same base path so it is not clear which should be used.
+				To resolve this, either delete the stale deploy configuration file (usually created by a previous build),
+				or run the command from the directory that contains the configuration file you want to use."
 			`);
 			expect(std).toMatchObject(NO_LOGS);
 
@@ -253,7 +255,9 @@ describe("config findWranglerConfig()", () => {
 			expect(normalizeString(`${error}`)).toMatchInlineSnapshot(`
 				"Error: Found both a user configuration file at "bar/foo/wrangler.toml"
 				and a deploy configuration file at "bar/.wrangler/deploy/config.json".
-				But these do not share the same base path so it is not clear which should be used."
+				But these do not share the same base path so it is not clear which should be used.
+				To resolve this, either delete the stale deploy configuration file (usually created by a previous build),
+				or run the command from the directory that contains the configuration file you want to use."
 			`);
 			expect(std).toMatchObject(NO_LOGS);
 		});
