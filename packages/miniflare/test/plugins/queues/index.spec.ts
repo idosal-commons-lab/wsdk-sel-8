@@ -1165,6 +1165,46 @@ test("supports metadata in sendBatch() response", async ({ expect }) => {
 	});
 });
 
+test("handles more than 10,000 queued messages without exceeding the timeout limit", async ({
+	expect,
+}) => {
+	const mf = new Miniflare({
+		workers: [
+			{
+				config: {
+					name: "producer",
+					compatibilityDate: "2025-05-01",
+					compatibilityFlags: ["experimental"],
+					env: { QUEUE: { type: "queue", name: "QUEUE" } },
+					manifest: singleModuleManifest(`export default {
+					async fetch(request, env, ctx) {
+						const messages = Array.from({ length: 100 }, (_, i) => ({ body: i }));
+						for (let i = 0; i < 110; i++) {
+							await env.QUEUE.sendBatch(messages);
+						}
+						return new Response("ok");
+					}
+				}`),
+				},
+			},
+			{
+				config: {
+					name: "consumer",
+					compatibilityDate: "2025-05-01",
+					triggers: [{ type: "queue", name: "QUEUE", maxBatchSize: 100 }],
+					manifest: singleModuleManifest(`export default {
+					async queue(batch, env, ctx) {}
+				}`),
+				},
+			},
+		],
+	});
+	useDispose(mf);
+
+	const res = await mf.dispatchFetch("http://localhost");
+	expect(await res.text()).toBe("ok");
+});
+
 test("validates message size", async ({ expect }) => {
 	const mf = new Miniflare({
 		workers: [

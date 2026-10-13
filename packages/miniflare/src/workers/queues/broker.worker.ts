@@ -441,7 +441,13 @@ export class QueueBrokerObject extends MiniflareDurableObject<QueueBrokerObjectE
 			};
 
 			const delay = message.delaySecs ?? globalDelay;
-			this.timers.setTimeout(fn, delay * 1000);
+			if (delay === 0) {
+				// Avoid registering one timer per undelayed message, as workerd limits
+				// the number of active timeouts (10,000)
+				fn();
+			} else {
+				this.timers.setTimeout(fn, delay * 1000);
+			}
 		}
 	}
 
