@@ -748,6 +748,35 @@ async function assemblePreviewDeploymentSettings(
 		env[secretName] = { type: "secret_text", text: secretValue };
 	}
 
+	// Secrets set on the Preview live with the Preview rather than with a single
+	// deployment, so carry the latest deployment's secrets forward unless this
+	// deployment explicitly provides a binding with the same name.
+	try {
+		const latestDeployment = await getPreviewDeployment(
+			config,
+			accountId,
+			workerName,
+			previewIdentifier,
+			"latest"
+		);
+		for (const [name, binding] of Object.entries(latestDeployment.env ?? {})) {
+			if (binding.type === "secret_text" && !(name in env)) {
+				env[name] = { type: "inherit" };
+			}
+		}
+	} catch (error) {
+		if (
+			!(
+				typeof error === "object" &&
+				error !== null &&
+				(("status" in error && error.status === 404) ||
+					("code" in error && (error.code === 10025 || error.code === 10222)))
+			)
+		) {
+			throw error;
+		}
+	}
+
 	if (Object.keys(env).length > 0) {
 		request.env = env;
 	}
