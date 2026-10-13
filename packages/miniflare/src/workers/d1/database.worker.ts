@@ -227,12 +227,20 @@ export class D1DatabaseObject extends MiniflareDurableObject {
 			searchParams.get("resultsFormat")
 		);
 
-		return Response.json(this.#txn(queries, resultsFormat), {
-			headers: {
-				[D1_SESSION_COMMIT_TOKEN_HTTP_HEADER]:
-					await this.state.storage.getCurrentBookmark(),
-			},
-		});
+		// Any failure here (e.g. a recoverable `SQLITE_BUSY` raised outside the
+		// transaction body) must be reported as a D1 error response, rather than
+		// escaping as an internal error that crashes the dev server
+		try {
+			const results = this.#txn(queries, resultsFormat);
+			return Response.json(results, {
+				headers: {
+					[D1_SESSION_COMMIT_TOKEN_HTTP_HEADER]:
+						await this.state.storage.getCurrentBookmark(),
+				},
+			});
+		} catch (e) {
+			throw e instanceof HttpError ? e : new D1Error(e);
+		}
 	};
 
 	#isExportPragma(queries: D1Query[]): queries is D1ExportPragma {
