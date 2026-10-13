@@ -129,7 +129,12 @@ function schedulerWait(
 				resolve();
 			}
 		};
-		void scheduler.wait(durationMs).then(finish);
+		// Passing the signal lets workerd clear the native timer on abort, so
+		// cancelled waits don't count against the active-timeout quota.
+		scheduler.wait(durationMs, signal ? { signal } : undefined).then(
+			finish,
+			finish
+		);
 		signal?.addEventListener("abort", finish, { once: true });
 	});
 }
@@ -627,7 +632,18 @@ export class Context extends RpcTarget {
 						targetTimestamp: Date.now() + timeout,
 						type: "timeout",
 					});
-					await scheduler.wait(timeout);
+					try {
+						await scheduler.wait(timeout, {
+							signal: abortController.signal,
+						});
+					} catch (e) {
+						if (abortController.signal.aborted) {
+							// The step finished first: the timer is cancelled and
+							// this task never settles.
+							return new Promise<never>(() => {});
+						}
+						throw e;
+					}
 					// if we reach here, means that we can try to delete the timeout from the PQ
 					// because we managed to wait in the same lifetime
 					// @ts-expect-error priorityQueue is initiated in init

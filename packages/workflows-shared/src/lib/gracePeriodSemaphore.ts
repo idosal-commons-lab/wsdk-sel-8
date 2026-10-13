@@ -12,6 +12,9 @@ export type GracePeriodCallback = (engine: Engine, timeoutMs: number) => void;
 
 export class GracePeriodSemaphore {
 	#counter: number = 0;
+	// Cancels the native timer of the pending grace period once it is
+	// invalidated. Per instance: abort signals can't cross Durable Objects.
+	gracePeriodAbortController: AbortController | undefined = undefined;
 	readonly callback: GracePeriodCallback;
 	readonly timeoutMs: number;
 	#waitingPromises: {
@@ -43,6 +46,8 @@ export class GracePeriodSemaphore {
 		// when the counter goes from 0 to 1 - we can safely reject the previous grace period
 		if (this.#counter == 0) {
 			latestGracePeriodTimestamp = undefined;
+			this.gracePeriodAbortController?.abort();
+			this.gracePeriodAbortController = undefined;
 		}
 		this.#counter += 1;
 	}
@@ -169,7 +174,20 @@ export const startGracePeriod: GracePeriodCallback = async (
 		}
 
 		latestGracePeriodTimestamp = thisTimestamp;
-		await scheduler.wait(timeoutMs);
+		const abortController = new AbortController();
+		engine.timeoutHandler.gracePeriodAbortController = abortController;
+		try {
+			await scheduler.wait(timeoutMs, { signal: abortController.signal });
+		} catch (e) {
+			// The grace period was invalidated by a new step; its timer is cancelled
+			if (abortController.signal.aborted) {
+				return;
+			}
+			throw e;
+		}
+		if (engine.timeoutHandler.gracePeriodAbortController === abortController) {
+			engine.timeoutHandler.gracePeriodAbortController = undefined;
+		}
 		if (
 			thisTimestamp !== latestGracePeriodTimestamp ||
 			engine.timeoutHandler.isRunningStep()
