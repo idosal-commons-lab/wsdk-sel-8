@@ -12,6 +12,34 @@ const UPDATE_CHECK_TIMEOUT_MS = 3_000;
 // (which means "already up-to-date").
 const TIMED_OUT: unique symbol = Symbol("timed_out");
 
+const NPM_REGISTRY = "https://registry.npmjs.org";
+
+/**
+ * Best-effort check for whether a specific version of a package is deprecated on npm.
+ * Any failure is treated as "not deprecated".
+ */
+async function isVersionDeprecated(
+	name: string,
+	version: string
+): Promise<boolean> {
+	try {
+		const response = await fetch(
+			`${NPM_REGISTRY}/${name.replace("/", "%2F")}/${encodeURIComponent(version)}`,
+			{
+				headers: { accept: "application/json" },
+				signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
+			}
+		);
+		if (!response.ok) {
+			return false;
+		}
+		const manifest = (await response.json()) as { deprecated?: unknown };
+		return Boolean(manifest.deprecated);
+	} catch {
+		return false;
+	}
+}
+
 export type NpmVersionCheckResult =
 	| { status: "up-to-date" }
 	| { status: "update-available"; latest: string }
@@ -28,7 +56,8 @@ export type NpmVersionCheckResult =
  * @param version - The current version to compare against
  * @returns A discriminated result:
  *   - `{ status: "update-available", latest: string }` if a newer version exists
- *   - `{ status: "up-to-date" }` if the installed version is already the latest
+ *   - `{ status: "up-to-date" }` if the installed version is already the latest,
+ *     or the newer version has been deprecated on npm
  *   - `{ status: "failed" }` if the check could not be completed (network error, timeout, etc.)
  */
 export async function fetchLatestNpmVersion(
@@ -58,6 +87,10 @@ export async function fetchLatestNpmVersion(
 		return { status: "failed" };
 	}
 	if (result === null) {
+		return { status: "up-to-date" };
+	}
+	// Don't suggest upgrading to a version that has been deprecated.
+	if (await isVersionDeprecated(name, result.latest)) {
 		return { status: "up-to-date" };
 	}
 	return { status: "update-available", latest: result.latest };
