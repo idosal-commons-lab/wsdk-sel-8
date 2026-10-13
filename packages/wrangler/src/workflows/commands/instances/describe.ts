@@ -5,6 +5,7 @@ import {
 	formatDistanceStrict,
 	formatDistanceToNowStrict,
 } from "date-fns";
+import { retryOnAPIFailure } from "@cloudflare/workers-utils";
 import { ms } from "itty-time";
 import { fetchResult } from "../../../cfetch";
 import { createCommand } from "../../../core/create-command";
@@ -85,9 +86,13 @@ export const workflowsInstancesDescribeCommand = createCommand({
 		} else {
 			const accountId = await requireAuth(config);
 			id = await getInstanceIdFromArgs(accountId, args, config);
-			instance = await fetchResult<InstanceStatusAndLogs>(
-				config,
-				`/accounts/${accountId}/workflows/${args.name}/instances/${id}`
+			instance = await retryOnAPIFailure(
+				() =>
+					fetchResult<InstanceStatusAndLogs>(
+						config,
+						`/accounts/${accountId}/workflows/${args.name}/instances/${id}`
+					),
+				logger
 			);
 		}
 

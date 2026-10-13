@@ -1,5 +1,6 @@
-import { UserError } from "@cloudflare/workers-utils";
+import { retryOnAPIFailure, UserError } from "@cloudflare/workers-utils";
 import { fetchResult } from "../cfetch";
+import { logger } from "../logger";
 import type {
 	Instance,
 	InstanceStatus,
@@ -188,9 +189,13 @@ export async function getInstanceIdFromArgs(
 
 	if (id == "latest") {
 		const instances = (
-			await fetchResult<Instance[]>(
-				config,
-				`/accounts/${accountId}/workflows/${args.name}/instances/`
+			await retryOnAPIFailure(
+				() =>
+					fetchResult<Instance[]>(
+						config,
+						`/accounts/${accountId}/workflows/${args.name}/instances/`
+					),
+				logger
 			)
 		).sort((a, b) => b.created_on.localeCompare(a.created_on));
 

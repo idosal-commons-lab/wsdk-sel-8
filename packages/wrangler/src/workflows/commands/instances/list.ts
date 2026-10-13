@@ -1,4 +1,4 @@
-import { UserError } from "@cloudflare/workers-utils";
+import { retryOnAPIFailure, UserError } from "@cloudflare/workers-utils";
 import { fetchCursorPage } from "../../../cfetch";
 import { createCommand } from "../../../core/create-command";
 import { logger } from "../../../logger";
@@ -203,11 +203,15 @@ export const workflowsInstancesListCommand = createCommand({
 
 			// Note(osilva): perform pagination with cursor to list all instances (and not a best effort set,
 			// due to changes in the Workflows control plane)
-			const instances = await fetchCursorPage<Instance[]>(
-				config,
-				`/accounts/${accountId}/workflows/${args.name}/instances`,
-				undefined,
-				URLParams
+			const instances = await retryOnAPIFailure(
+				() =>
+					fetchCursorPage<Instance[]>(
+						config,
+						`/accounts/${accountId}/workflows/${args.name}/instances`,
+						undefined,
+						URLParams
+					),
+				logger
 			);
 
 			const sortedInstances = instances.sort((a, b) =>
