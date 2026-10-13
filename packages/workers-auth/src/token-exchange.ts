@@ -292,6 +292,18 @@ export async function exchangeAuthCodeForAccessToken(
 }
 
 /**
+ * Thrown when no HTTP response was received from the OAuth token endpoint
+ * (DNS failure, connection timeout, TLS error, ...), as opposed to the server
+ * actively rejecting a request.
+ */
+export class AuthServerUnreachableError extends Error {
+	constructor(cause: unknown) {
+		super(cause instanceof Error ? cause.message : String(cause), { cause });
+		this.name = "AuthServerUnreachableError";
+	}
+}
+
+/**
  * Make a request to the Cloudflare OAuth endpoint to get a token.
  *
  * Note that the `body` of the POST request is form-urlencoded so
@@ -344,7 +356,7 @@ export async function fetchAuthToken(
 	} catch (e) {
 		// Log at debug level — the error is re-thrown for the caller to handle.
 		logger.debug("Failed to fetch auth token:", e);
-		throw e;
+		throw new AuthServerUnreachableError(e);
 	}
 }
 
