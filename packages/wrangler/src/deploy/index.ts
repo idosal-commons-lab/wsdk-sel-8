@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
 	cleanupBuiltImages,
 	initContainersSharedContext,
@@ -37,6 +38,7 @@ import { syncWorkersSite } from "../sites";
 import { detectAgent } from "../utils/detect-agent";
 import { getScriptName } from "../utils/getScriptName";
 import { maybeRunAutoConfig, promptForMissingDeployConfig } from "./autoconfig";
+import { assertNoCloudflareBuildOutput } from "./cloudflare-build-output";
 import { maybeDelegateToOpenNextDeployCommand } from "./open-next";
 import type { Config } from "@cloudflare/workers-utils";
 
@@ -136,6 +138,11 @@ export async function runDeployCommandHandler(
 		pagesToWorkersDelegation = false,
 	}: { config: Config; pagesToWorkersDelegation?: boolean }
 ): Promise<void> {
+	// Fail before any remote mutation if this is Cloudflare Build Output.
+	assertNoCloudflareBuildOutput(
+		config.configPath ? path.dirname(config.configPath) : process.cwd()
+	);
+
 	const detectedAgent = detectAgent();
 	const shouldUseProjectName =
 		detectedAgent.isAgent && !args.name && !config.name;
