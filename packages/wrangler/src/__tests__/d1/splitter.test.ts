@@ -457,6 +457,19 @@ describe("splitSqlQuery()", () => {
 		`);
 	});
 
+	it("should treat bracket-quoted identifiers as quoted", ({ expect }) => {
+		const sql = `CREATE TRIGGER t AFTER INSERT ON items
+BEGIN
+ UPDATE x SET [end] = 1;
+ UPDATE y SET z = 2;
+END;
+SELECT 1;`;
+		expect(splitSqlQuery(sql)).toEqual([
+			"CREATE TRIGGER t AFTER INSERT ON items\nBEGIN\n UPDATE x SET [end] = 1;\n UPDATE y SET z = 2;\nEND",
+			"SELECT 1",
+		]);
+	});
+
 	describe("performance tests", () => {
 		it("should split a file with a lot of commands", ({ expect }) => {
 			const sql = "INSERT INTO blobs (id, data) VALUES (1, 'xxx');\n".repeat(

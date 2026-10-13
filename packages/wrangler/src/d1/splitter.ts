@@ -149,6 +149,9 @@ function splitSqlIntoStatements(sql: string): string[] {
 			case "`":
 				str += char + consumeUntilMarker(iterator, char);
 				break;
+			case "[":
+				str += char + consumeUntilMarker(iterator, "]");
+				break;
 			case `$`: {
 				const dollarQuote =
 					"$" + consumeWhile(iterator, isDollarQuoteIdentifier);
