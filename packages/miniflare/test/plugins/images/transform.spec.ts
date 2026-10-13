@@ -103,6 +103,26 @@ describe("Images binding local transforms", () => {
 		};
 	}
 
+	test("applies EXIF orientation before transforming", async ({ expect }) => {
+		// 200x100 pixels tagged with EXIF Orientation 6 (rotate 90deg CW to
+		// display), so the upright image is 100x200.
+		const exifJpeg = await sharp(sourcePng)
+			.withMetadata({ orientation: 6 })
+			.jpeg()
+			.toBuffer();
+		const params = new URLSearchParams({
+			transform: JSON.stringify({}),
+			format: "image/jpeg",
+		});
+		const res = await mf.dispatchFetch(`http://localhost/?${params}`, {
+			method: "POST",
+			body: exifJpeg,
+		});
+		const meta = await sharp(Buffer.from(await res.arrayBuffer())).metadata();
+		expect(meta.width).toBe(100);
+		expect(meta.height).toBe(200);
+	});
+
 	test("fit:cover resizes to exact dimensions", async ({ expect }) => {
 		const { body } = await transform({ width: 50, height: 50, fit: "cover" });
 		const meta = await sharp(body).metadata();

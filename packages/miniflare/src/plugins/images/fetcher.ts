@@ -62,7 +62,7 @@ export async function imagesLocalFetcher(request: Request): Promise<Response> {
 		);
 	}
 
-	const transformer = sharp(await body.arrayBuffer(), {});
+	const transformer = sharp(await body.arrayBuffer(), { autoOrient: true });
 
 	const url = new URL(request.url);
 
@@ -419,7 +419,7 @@ export async function cfImageLocalFetcher(request: Request): Promise<Response> {
 			});
 		}
 
-		const transformer = sharp(source);
+		const transformer = sharp(source, { autoOrient: true });
 		applyCfImageTransforms(transformer, options);
 
 		const quality = resolveQuality(options.quality);
