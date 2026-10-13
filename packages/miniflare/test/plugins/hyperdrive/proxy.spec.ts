@@ -549,6 +549,29 @@ describe("HyperdriveProxyController TLS modes", () => {
 			server.close();
 		}
 	});
+
+	test("reuses the server of an unchanged binding", async ({ expect }) => {
+		const reuseController = new HyperdriveProxyController();
+		try {
+			const config = {
+				name: "test-reuse",
+				targetHost: "127.0.0.1",
+				targetPort: "5432",
+				scheme: "postgres",
+				sslmode: "require",
+			};
+			const first = await reuseController.createProxyServer(config);
+			const second = await reuseController.createProxyServer(config);
+			expect(second).toBe(first);
+			const changed = await reuseController.createProxyServer({
+				...config,
+				targetPort: "5433",
+			});
+			expect(changed).not.toBe(first);
+		} finally {
+			reuseController.dispose();
+		}
+	});
 });
 
 describe("MySQL ssl-mode parsing via Miniflare", () => {

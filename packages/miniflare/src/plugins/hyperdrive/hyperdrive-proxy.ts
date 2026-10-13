@@ -111,8 +111,8 @@ function buildTlsConnectionOptions(
  * each Hyperdrive binding through a randomly assigned local port.
  */
 export class HyperdriveProxyController {
-	// Map hyperdrive binding name to proxy server
-	#servers = new Map<string, net.Server>();
+	// Map a binding name and target to its proxy server and port
+	#servers = new Map<string, { server: net.Server; port: number }>();
 	log?: Log;
 
 	/**
@@ -124,6 +124,20 @@ export class HyperdriveProxyController {
 	async createProxyServer(config: HyperdriveProxyConfig): Promise<number> {
 		const { name, targetHost, targetPort, scheme, sslmode, sslrootcert } =
 			config;
+		// `getServices()` runs on every `setOptions()`. Reuse the server of an
+		// unchanged binding instead of starting another one.
+		const serverKey = JSON.stringify([
+			name,
+			targetHost,
+			targetPort,
+			scheme,
+			sslmode,
+			sslrootcert,
+		]);
+		const existing = this.#servers.get(serverKey);
+		if (existing !== undefined) {
+			return existing.port;
+		}
 		const server = net.createServer((clientSocket) => {
 			this.#handleConnection(
 				clientSocket,
@@ -153,7 +167,7 @@ export class HyperdriveProxyController {
 				}
 			});
 		});
-		this.#servers.set(name, server);
+		this.#servers.set(serverKey, { server, port });
 		return port;
 	}
 
@@ -231,7 +245,7 @@ export class HyperdriveProxyController {
 		// server.close() because net.Server waits for all existing connections
 		// to end before calling the callback, and lingering TCP sockets (e.g.
 		// from in-progress TLS negotiation) could block dispose indefinitely.
-		for (const server of this.#servers.values()) {
+		for (const { server } of this.#servers.values()) {
 			server.close();
 		}
 		this.#servers.clear();
