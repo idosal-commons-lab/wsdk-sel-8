@@ -1,7 +1,12 @@
 import { Blob } from "node:buffer";
 import http from "node:http";
 import { URLSearchParams } from "node:url";
-import { DeferredPromise, fetch, FormData } from "miniflare";
+import {
+	DeferredPromise,
+	DispatchFetchDispatcher,
+	fetch,
+	FormData,
+} from "miniflare";
 import { assert, onTestFinished, test } from "vitest";
 import { WebSocketServer } from "ws";
 import { useServer } from "../test-shared";
@@ -244,4 +249,28 @@ test("fetch: returns regular response if no WebSocket response returned", async 
 	expect(res.status).toBe(404);
 	expect(res.headers.get("Content-Type")).toBe("text/html");
 	expect(await res.text()).toBe("<p>Not Found</p>");
+});
+
+test("DispatchFetchDispatcher: does not force connection reset for runtime requests", async ({
+	expect,
+}) => {
+	let dispatched: Record<string, unknown> | undefined;
+	const runtimeDispatcher = {
+		dispatch(options: Record<string, unknown>) {
+			dispatched = options;
+			return true;
+		},
+	};
+	const dispatcher = new DispatchFetchDispatcher(
+		{} as never,
+		runtimeDispatcher as never,
+		"http://127.0.0.1:1234",
+		"https://example.com"
+	);
+	dispatcher.dispatch(
+		{ origin: "https://example.com", path: "/", method: "GET" },
+		{} as never
+	);
+	expect(dispatched).toBeDefined();
+	expect(dispatched?.reset).toBeUndefined();
 });
