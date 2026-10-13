@@ -10,11 +10,16 @@ const ADMIN_API = "SecretsStoreSecret::admin_api";
  * ```ts
  * import { adminSecretsStore } from "cloudflare:test";
  *
- * const admin = adminSecretsStore(env.MY_SECRET);
+ * using admin = adminSecretsStore(env.MY_SECRET);
  * await admin.create("my-secret-value");
  * ```
+ *
+ * The returned value is an RPC stub, so it should be disposed (e.g. with
+ * `using`) once you are done with it.
  */
-export function adminSecretsStore(binding: unknown): SecretsStoreSecretAdmin {
+export function adminSecretsStore(
+	binding: unknown
+): SecretsStoreSecretAdmin & Disposable {
 	if (
 		typeof binding !== "object" ||
 		binding === null ||
@@ -27,5 +32,5 @@ export function adminSecretsStore(binding: unknown): SecretsStoreSecretAdmin {
 
 	return (binding as Record<string, (...args: unknown[]) => unknown>)[
 		ADMIN_API
-	]() as SecretsStoreSecretAdmin;
+	]() as SecretsStoreSecretAdmin & Disposable;
 }
