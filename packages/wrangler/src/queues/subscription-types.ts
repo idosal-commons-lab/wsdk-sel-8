@@ -49,6 +49,8 @@ export interface ArtifactsEventSource {
 
 export interface ArtifactsRepoEventSource {
 	type: EventSourceType.ARTIFACTS_REPO;
+	namespace: string;
+	repo_name: string;
 }
 
 export interface EmailSendingEventSource {

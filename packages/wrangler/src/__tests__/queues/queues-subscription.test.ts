@@ -110,7 +110,9 @@ describe("queues subscription", () => {
 				      --worker-name    Worker name (required for workersBuilds.worker source)  [string]
 				      --workflow-name  Workflow name (required for workflows.workflow source)  [string]
 				      --zone-id        Zone ID (required for email.sending source)  [string]
-				      --domain         Sending domain — zone apex or verified subdomain (required for email.sending source)  [string]"
+				      --domain         Sending domain — zone apex or verified subdomain (required for email.sending source)  [string]
+				      --namespace      Artifacts namespace (required for artifacts.repo source)  [string]
+				      --repo-name      Artifacts repository name (required for artifacts.repo source). Note: the API expects short event names in --events (e.g. 'pushed', 'token.created')  [string]"
 			`);
 		});
 
@@ -242,41 +244,6 @@ describe("queues subscription", () => {
 			expect(createRequest.count).toEqual(1);
 		});
 
-		it("should create a subscription for an Artifacts repository source", async ({
-			expect,
-		}) => {
-			const queueNameResolveRequest = mockGetQueueByNameRequest(
-				expectedQueueName,
-				{
-					queue_id: expectedQueueId,
-					queue_name: expectedQueueName,
-					created_on: "",
-					producers: [],
-					consumers: [],
-					producers_total_count: 0,
-					consumers_total_count: 0,
-					modified_on: "",
-				}
-			);
-
-			const createRequest = mockCreateSubscriptionRequest(
-				{
-					name: "testQueue artifacts.repo",
-					enabled: true,
-					source: { type: EventSourceType.ARTIFACTS_REPO },
-					events: ["pushed"],
-				},
-				expectedQueueId
-			);
-
-			await runWrangler(
-				"queues subscription create testQueue --source artifacts.repo --events pushed"
-			);
-
-			expect(queueNameResolveRequest.count).toEqual(1);
-			expect(createRequest.count).toEqual(1);
-		});
-
 		it("should create a subscription for email.sending source", async ({
 			expect,
 		}) => {
@@ -324,6 +291,65 @@ describe("queues subscription", () => {
 				Creating event subscription for queue 'testQueue'...
 				✨ Successfully created event subscription 'testQueue email.sending' with id 'sub-123'."
 			`);
+		});
+
+		it("should create a subscription for artifacts.repo source", async ({
+			expect,
+		}) => {
+			const queueNameResolveRequest = mockGetQueueByNameRequest(
+				expectedQueueName,
+				{
+					queue_id: expectedQueueId,
+					queue_name: expectedQueueName,
+					created_on: "",
+					producers: [],
+					consumers: [],
+					producers_total_count: 0,
+					consumers_total_count: 0,
+					modified_on: "",
+				}
+			);
+
+			const createRequest = mockCreateSubscriptionRequest(
+				{
+					name: "testQueue artifacts.repo",
+					enabled: true,
+					source: {
+						type: EventSourceType.ARTIFACTS_REPO,
+						namespace: "my-ns",
+						repo_name: "my-repo",
+					},
+					events: ["pushed"],
+				},
+				expectedQueueId
+			);
+
+			await runWrangler(
+				"queues subscription create testQueue --source artifacts.repo --events pushed --namespace my-ns --repo-name my-repo"
+			);
+
+			expect(queueNameResolveRequest.count).toEqual(1);
+			expect(createRequest.count).toEqual(1);
+			expect(std.err).toMatchInlineSnapshot(`""`);
+		});
+
+		it("should show error when namespace or repo-name is missing for artifacts.repo source", async ({
+			expect,
+		}) => {
+			await expect(
+				runWrangler(
+					"queues subscription create testQueue --source artifacts.repo --events pushed --repo-name my-repo"
+				)
+			).rejects.toThrowErrorMatchingInlineSnapshot(
+				`[Error: --namespace is required when using source 'artifacts.repo']`
+			);
+			await expect(
+				runWrangler(
+					"queues subscription create testQueue --source artifacts.repo --events pushed --namespace my-ns"
+				)
+			).rejects.toThrowErrorMatchingInlineSnapshot(
+				`[Error: --repo-name is required when using source 'artifacts.repo']`
+			);
 		});
 
 		it("should show error when zone-id is missing for email.sending source", async ({

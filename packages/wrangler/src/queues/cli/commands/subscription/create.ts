@@ -19,6 +19,8 @@ function parseSourceArgument(
 		workflowName?: string;
 		zoneId?: string;
 		domain?: string;
+		namespace?: string;
+		repoName?: string;
 	}
 ): EventSource {
 	switch (source as EventSourceType) {
@@ -26,7 +28,23 @@ function parseSourceArgument(
 			return { type: EventSourceType.ARTIFACTS };
 
 		case EventSourceType.ARTIFACTS_REPO:
-			return { type: EventSourceType.ARTIFACTS_REPO };
+			if (!args.namespace) {
+				throw new UserError(
+					`--namespace is required when using source '${EventSourceType.ARTIFACTS_REPO}'`,
+					{ telemetryMessage: "queues subscription create missing namespace" }
+				);
+			}
+			if (!args.repoName) {
+				throw new UserError(
+					`--repo-name is required when using source '${EventSourceType.ARTIFACTS_REPO}'`,
+					{ telemetryMessage: "queues subscription create missing repo name" }
+				);
+			}
+			return {
+				type: EventSourceType.ARTIFACTS_REPO,
+				namespace: args.namespace,
+				repo_name: args.repoName,
+			};
 
 		case EventSourceType.EMAIL_SENDING:
 			if (!args.zoneId) {
@@ -164,6 +182,15 @@ export const queuesSubscriptionCreateCommand = createCommand({
 				"Sending domain — zone apex or verified subdomain (required for email.sending source)",
 			type: "string",
 		},
+		namespace: {
+			describe: "Artifacts namespace (required for artifacts.repo source)",
+			type: "string",
+		},
+		"repo-name": {
+			describe:
+				"Artifacts repository name (required for artifacts.repo source). Note: the API expects short event names in --events (e.g. 'pushed', 'token.created')",
+			type: "string",
+		},
 	},
 	async handler(args, { config }) {
 		const source = parseSourceArgument(args.source, {
@@ -172,6 +199,8 @@ export const queuesSubscriptionCreateCommand = createCommand({
 			workflowName: args.workflowName,
 			zoneId: args.zoneId,
 			domain: args.domain,
+			namespace: args.namespace,
+			repoName: args.repoName,
 		});
 
 		const events = args.events
