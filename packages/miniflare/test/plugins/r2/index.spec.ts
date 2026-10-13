@@ -1118,6 +1118,18 @@ test("operations permit strange bucket names", async ({ expect }) => {
 	expect(await object?.text()).toBe("value");
 });
 
+test("put accepts body returned by get() via getR2Bucket()", async ({
+	expect,
+}) => {
+	const { r2 } = ctx;
+	await r2.put("source", "value");
+	const object = await r2.get("source");
+	assert(object !== null);
+	await r2.put("copy", object.body);
+	const copy = await r2.get("copy");
+	expect(await copy?.text()).toBe("value");
+});
+
 // Multipart tests
 const PART_SIZE = 50;
 

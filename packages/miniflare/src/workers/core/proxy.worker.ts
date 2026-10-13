@@ -321,6 +321,16 @@ export class ProxyServer implements DurableObject {
 			}
 			assert(Array.isArray(args));
 			try {
+				// R2 requires streams to have a known length, but streams proxied from
+				// Node.js don't (e.g. a body returned by `get()` passed back to
+				// `put()`), so buffer them first.
+				if (
+					targetName === "R2Bucket" &&
+					keyHeader === "put" &&
+					args[1] instanceof ReadableStream
+				) {
+					args[1] = await new Response(args[1]).arrayBuffer();
+				}
 				// See #createMediaProxy() for why this is special
 				if (isImagesInput(targetName, keyHeader)) {
 					let transform = func.apply(target, [args[0]]);
