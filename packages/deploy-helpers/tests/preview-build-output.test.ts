@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 	createPreviewParentWorker: vi.fn(),
 	editPreview: vi.fn(),
 	getPreview: vi.fn(),
+	getPreviewDeployment: vi.fn(),
 	syncAssets: vi.fn(),
 }));
 
@@ -25,6 +26,7 @@ vi.mock("../src/preview/api", async (importOriginal) => ({
 	createPreviewParentWorker: mocks.createPreviewParentWorker,
 	editPreview: mocks.editPreview,
 	getPreview: mocks.getPreview,
+	getPreviewDeployment: mocks.getPreviewDeployment,
 }));
 
 vi.mock("../src/deploy/helpers/assets", () => ({
@@ -96,6 +98,7 @@ describe("previewBuildOutput", () => {
 		mocks.createPreview.mockResolvedValue(previewResource);
 		mocks.createPreviewParentWorker.mockResolvedValue(undefined);
 		mocks.createPreviewDeployment.mockResolvedValue(deploymentResource);
+		mocks.getPreviewDeployment.mockRejectedValue({ status: 404 });
 		mocks.syncAssets.mockResolvedValue({ jwt: "asset-token" });
 	});
 
@@ -221,6 +224,29 @@ describe("previewBuildOutput", () => {
 			"feature",
 			{ tail_consumers: [] }
 		);
+	});
+
+	it("inherits secrets from the latest deployment unless overridden", async ({
+		expect,
+	}) => {
+		mocks.getPreviewDeployment.mockResolvedValue({
+			...deploymentResource,
+			env: {
+				KEPT: { type: "secret_text" },
+				REPLACED: { type: "secret_text" },
+				PLAIN: { type: "plain_text", text: "old" },
+			},
+		});
+		await uploadPreview(
+			buildOutputConfig({
+				env: { REPLACED: { type: "kv", id: "kv-id" } },
+			})
+		);
+
+		const request = mocks.createPreviewDeployment.mock.calls[0]?.[4];
+		expect(request.env.KEPT).toEqual({ type: "inherit" });
+		expect(request.env.REPLACED).toMatchObject({ type: "kv_namespace" });
+		expect(request.env).not.toHaveProperty("PLAIN");
 	});
 
 	it("applies explicit disabled Preview settings", async ({ expect }) => {
