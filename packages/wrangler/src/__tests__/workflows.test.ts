@@ -475,6 +475,33 @@ describe("wrangler workflows", () => {
 			},
 		];
 
+		it("should retry listing instances on a transient 503", async ({
+			expect,
+		}) => {
+			writeWranglerConfig();
+			let calls = 0;
+			msw.use(
+				http.get(
+					`*/accounts/:accountId/workflows/some-workflow/instances`,
+					() => {
+						calls++;
+						if (calls === 1) {
+							return new HttpResponse(null, { status: 503 });
+						}
+						return HttpResponse.json({
+							success: true,
+							errors: [],
+							messages: [],
+							result: mockInstances,
+						});
+					}
+				)
+			);
+
+			await runWrangler(`workflows instances list some-workflow --json`);
+			expect(calls).toBe(2);
+		});
+
 		it("should get the list of instances given a name", async ({ expect }) => {
 			writeWranglerConfig();
 			await mockGetInstances(mockInstances);
