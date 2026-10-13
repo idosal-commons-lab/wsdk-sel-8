@@ -152,6 +152,8 @@ function findRedirectedWranglerConfig(
 					Found both a user configuration file at "${path.relative(".", userConfigPath)}"
 					and a deploy configuration file at "${path.relative(".", deployConfigPath)}".
 					But these do not share the same base path so it is not clear which should be used.
+					To resolve this, either delete the stale deploy configuration file (usually created by a previous build),
+					or run the command from the directory that contains the configuration file you want to use.
 				`,
 				{ telemetryMessage: false }
 			);
