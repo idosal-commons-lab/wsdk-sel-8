@@ -8,7 +8,10 @@ import {
 import { http, HttpResponse } from "msw";
 import * as TOML from "smol-toml";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
-import { VERSION_NOT_DEPLOYED_ERR_CODE } from "../secret";
+import {
+	SETTINGS_EDIT_VERSION_NOT_DEPLOYED_ERR_CODE,
+	VERSION_NOT_DEPLOYED_ERR_CODE,
+} from "../secret";
 import {
 	WORKER_NOT_FOUND_ERR_CODE,
 	workerNotFoundErrorMessage,
@@ -1020,6 +1023,32 @@ describe("wrangler secret", () => {
 				"
 			`);
 			expect(std.warn).toMatchInlineSnapshot(`""`);
+		});
+
+		it("should show a helpful error if the latest version is not deployed", async ({
+			expect,
+		}) => {
+			mockReadlineInput(JSON.stringify({ secret1: "secret-value" }));
+			msw.use(
+				http.patch(
+					`*/accounts/:accountId/workers/scripts/:scriptName/secrets-bulk`,
+					async () =>
+						HttpResponse.json(
+							createFetchResult(null, false, [
+								{
+									code: SETTINGS_EDIT_VERSION_NOT_DEPLOYED_ERR_CODE,
+									message: "Script edit failed. latest not deployed",
+								},
+							])
+						),
+					{ once: true }
+				)
+			);
+			await expect(
+				runWrangler(`secret bulk --name script-name`)
+			).rejects.toThrow(
+				/the latest version of your Worker isn't currently deployed/
+			);
 		});
 
 		it("should use secret bulk w/ pipe input", async ({ expect }) => {

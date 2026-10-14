@@ -16,6 +16,8 @@ import { readFromStdin, trimTrailingWhitespace } from "../utils/std";
 import type { Config } from "@cloudflare/workers-utils";
 
 export const VERSION_NOT_DEPLOYED_ERR_CODE = 10215;
+// Returned when the settings of an undeployed latest version would be modified
+export const SETTINGS_EDIT_VERSION_NOT_DEPLOYED_ERR_CODE = 10214;
 
 type SecretBindingUpload = {
 	type: "secret_text";
@@ -154,7 +156,11 @@ export const secretPutCommand = createCommand({
 					}),
 				});
 			} catch (e) {
-				if (e instanceof APIError && e.code === VERSION_NOT_DEPLOYED_ERR_CODE) {
+				if (
+					e instanceof APIError &&
+					(e.code === VERSION_NOT_DEPLOYED_ERR_CODE ||
+						e.code === SETTINGS_EDIT_VERSION_NOT_DEPLOYED_ERR_CODE)
+				) {
 					throw new UserError(
 						"Secret edit failed. You attempted to modify a secret, but the latest version of your Worker isn't currently deployed.\n" +
 							"This limitation exists to prevent accidental deployment when using Worker versions and secrets together.\n" +
@@ -373,11 +379,31 @@ async function putBulkSecrets(
 			secrets[key] = null;
 		}
 	}
-	const resp = await fetchResult(config, url, {
-		method: "PATCH",
-		headers: { "Content-Type": "application/merge-patch+json" },
-		body: JSON.stringify({ secrets }),
-	});
+	let resp: unknown;
+	try {
+		resp = await fetchResult(config, url, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/merge-patch+json" },
+			body: JSON.stringify({ secrets }),
+		});
+	} catch (e) {
+		if (
+			e instanceof APIError &&
+			(e.code === VERSION_NOT_DEPLOYED_ERR_CODE ||
+				e.code === SETTINGS_EDIT_VERSION_NOT_DEPLOYED_ERR_CODE)
+		) {
+			throw new UserError(
+				"Secret edit failed. You attempted to modify secrets, but the latest version of your Worker isn't currently deployed.\n" +
+					"This limitation exists to prevent accidental deployment when using Worker versions and secrets together.\n" +
+					"To resolve this, you have two options:\n" +
+					"(1) use the `wrangler versions secret bulk` instead, which allows you to update secrets without deploying; or\n" +
+					"(2) deploy the latest version first, then modify secrets.\n" +
+					"Alternatively, you can use the Cloudflare dashboard to modify secrets and deploy the version.",
+				{ telemetryMessage: "secret bulk version not deployed" }
+			);
+		}
+		throw e;
+	}
 	return [resp, toCreate, toDelete];
 }
 
