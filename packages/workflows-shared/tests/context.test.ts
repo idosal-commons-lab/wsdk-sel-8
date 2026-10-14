@@ -59,6 +59,49 @@ describe("Context", () => {
 		expect(receivedAttempt).toBe(1);
 	});
 
+	it("should cancel the timeout timer once a step completes", async () => {
+
+		const engineStub = await runWorkflow(
+			"MOCK-INSTANCE-ID",
+			async (_event, step) => {
+				const signals: AbortSignal[] = [];
+				// The workflow callback runs in the engine's isolate, so spying on
+				// the global scheduler captures the engine's step timeout timers.
+				const originalWait = scheduler.wait.bind(scheduler);
+				const spy = vi
+					.spyOn(scheduler, "wait")
+					.mockImplementation((delay, options) => {
+						if (delay === 10 * 60 * 1000 && options?.signal) {
+							signals.push(options.signal);
+						}
+						return originalWait(delay, options);
+					});
+				try {
+					await step.do("a", async () => "a");
+					await step.do("b", async () => "b");
+					if (
+						signals.length !== 2 ||
+						!signals.every((signal) => signal.aborted)
+					) {
+						throw new NonRetryableError("step timeout timers were not cancelled");
+					}
+				} finally {
+					spy.mockRestore();
+				}
+			}
+		);
+
+		await vi.waitUntil(
+			async () => {
+				const logs = (await engineStub.readLogs()) as EngineLogs;
+				return logs.logs.some(
+					(val) => val.event === InstanceEvent.WORKFLOW_SUCCESS
+				);
+			},
+			{ timeout: 5000 }
+		);
+	});
+
 	it("should provide attempt count to callback", async ({ expect }) => {
 		const receivedAttempts: number[] = [];
 
